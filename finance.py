@@ -7,8 +7,9 @@ import yfinance as yf
 import pickle
 import json
 from datetime import date
+import multiprocessing as mp
 
-# Borrowed from StackOverflow lol
+# Credit for millify: StackOverflow
 millnames = ['',' Thousand',' Million',' Billion',' Trillion']
 def millify(n):
     n = float(n)
@@ -17,25 +18,34 @@ def millify(n):
 
     return '{:.0f}{}'.format(n / 10**(3 * millidx), millnames[millidx])
 
+def is_valid_num(n):
+    if math.isnan(n) or n is None:
+        return False
+    else:
+        return True
+
 class Stock:
     #PRIVATE
-
     ___ticker = 0
+    ___stock_info = 0
     ticker_invalid = False
     value_margin = 0
     price_book = 0
     price_earnings = 0
     price = 0
     shares_outstanding = 0
-    market_cap = ''
     intrinsic_value = 0
 
     company_name = ''
     company_symbol = ''
+    market_cap = ''
+    sector = ''
+    industry = ''
+    country = ''
+    currency = ''
 
     def __init__(self, ticker):
         try:
-            print(ticker)
             self.__ticker = yf.Ticker(ticker)
             self.ticker_invalid = False
             self.company_symbol = ticker
@@ -95,87 +105,132 @@ class Stock:
         terminal_value = new_fcf / (discount_rate - (growth_factor - 1))
         return terminal_value
 
+    def get_stock_info(self):
+
+        print("welcome to my crib")
+        print(stock_info['priceToBook'])
+        #self.price_book = stock_info['priceToBook']
+        print("0.3")
+        if not is_valid_num(self.price_book):
+            self.price_book = 0
+
+        print("1")
+        self.price_earnings = stock_info['trailingPE']
+        if not is_valid_num(self.price_earnings):
+            self.price_earnings = 0
+
+        print("2")
+        self.market_cap = millify(stock_info['marketCap'])
+        if self.market_cap is None:
+            self.market_cap = ""
+
+        print("3")
+        self.company_name = stock_info['longName']
+        if self.company_name is None:
+            self.company_name = ""
+
+        print("4")
+        self.sector = stock_info['sector']
+        if self.sector is None:
+            self.sector = ""
+
+        print("5")
+        self.industry = stock_info['industry']
+        if self.industry is None:
+            self.industry = ""
+
+        print("6")
+        self.country = stock_info['country']
+        if self.country is None:
+            self.country = ""
+
+        print("7")
+        self.currency = stock_info['currency']
+        if self.currency is None:
+            self.currency = ""
+        print("yon")
+
     def is_undervalued(self, discount_rate_percent=11, growth_rate_percent=0):
         try:
-            stock_info = self.__ticker.get_info()
-            self.company_name = stock_info['longName']
-            self.shares_outstanding = stock_info['sharesOutstanding']
-            self.price = stock_info['regularMarketPrice']
+            self.___stock_info = self.__ticker.get_info()
 
-            if self.price == 0 or self.shares_outstanding == 0:
-                return 0
+            self.shares_outstanding = self.___stock_info['sharesOutstanding']
+            self.price = self.___stock_info['regularMarketPrice']
 
             self.intrinsic_value = self.get_dcf_valuation(discount_rate_percent, growth_rate_percent) / self.shares_outstanding
 
             if self.intrinsic_value <= 0:
                 return False
             elif (self.price / self.intrinsic_value) < 0.8:
+                #print("FUEGO FUEGO FUEGO")
                 self.value_margin = abs((self.price - self.intrinsic_value) / self.intrinsic_value) * 100
-
-                try:
-                    self.price_book = stock_info['priceToBook']
-                except:
-                    self.price_book = 0
-                try:
-                    self.price_earnings = stock_info['trailingPE']
-                except:
-                    self.price_earnings = 0
-                try:
-                    self.market_cap = millify(stock_info['marketCap'])
-                except:
-                    self.market_cap = ''
-
+                print("DING DONG DING DONG")
+                self.get_stock_info()
+                print("takyonnnnn my ")
                 return True
             else:
                 return False
-
-        except:
+        except Exception as e:
+            print(e)
             return False
 
-def get_sorting_key(stock):
-    return stock.value_margin
+class Manager:
+    ___undervalued_stocks = []
 
-def load_json(filename):
-    with open(filename, 'r') as f:
-        data = f.read()
-    stock_data = json.loads(data)
+    def get_sorting_key(self, stock):
+        return stock.value_margin
 
-    undervalued_stocks = []
-    for f in stock_data:
-        stock = Stock(f['Symbol'])
+    def read_json_symbol(self, obj):
+        return Stock(obj['Symbol'])
+
+    def read_pickle(self, obj):
+        return Stock(obj)
+
+    def dcf_test(self, stock):
         if stock.is_undervalued():
-            undervalued_stocks.append(stock)
-    return undervalued_stocks
+            print("yessir")
+            self.___undervalued_stocks.append(stock)
 
-def load_pickle(filename):
-    with open(filename, 'rb') as f:
-        stock_data = pickle.load(f)
+    def load_json(self, filename):
+        with open(filename, 'r') as f:
+            data = f.read()
+        stock_data = json.loads(data)
 
-    undervalued_stocks = []
-    for f in stock_data:
-        stock = Stock(f)
-        if stock.is_undervalued():
-            undervalued_stocks.append(stock)
-    return undervalued_stocks
+        pool = mp.Pool(mp.cpu_count())
+        stock_list = pool.map(self.read_json_symbol, stock_data)
+        temp = pool.map_async(self.dcf_test, stock_list)
 
-def dump_stocks(undervalued_list):
-    with open("undervalued_stocks.txt", "a") as file_out:
-        file_out.write("UNDERVALUED STOCKS | " + str(date.today()) + "\n\n")
-        for s in undervalued_list:
-            file_out.write("----------------\n" + s.company_name + " (" + s.company_symbol + ")\n")
-            file_out.write("Value Margin: " + str(round(s.value_margin, 3)) + "%\n")
-            file_out.write("Price: " + str(s.price) + " | Intrinsic Value: " + str(s.intrinsic_value) + "\n")
-            file_out.write("P/B: " + str(s.price_book) + " | P/E (TTM): " + str(s.price_earnings) + "\n")
-            file_out.write("Market Cap: " + s.market_cap + " | Shares Outstanding: " + str(s.shares_outstanding) + "\n")
-            file_out.write("---------------- \n\n")
-    print("-- FINISHED PROCESSING JSON --")
+        return self.___undervalued_stocks
 
-def process_data(undervalued_list):
-    undervalued_list.sort(key=get_sorting_key, reverse=True)
-    dump_stocks(undervalued_list)
+    def load_pickle(self, filename):
+        with open(filename, 'rb') as f:
+            stock_data = pickle.load(f)
 
-#process_data(load_pickle('stock_list.p'))
-stock = Stock('aal')
-print(stock.is_undervalued())
-print(stock.intrinsic_value)
-print(stock.price)
+        pool = mp.Pool(mp.cpu_count())
+        stock_list = pool.map(self.read_pickle, stock_data)
+        temp = pool.map(self.dcf_test, stock_list)
+
+        return self.___undervalued_stocks
+
+    def dump_stocks(self, undervalued_list):
+        with open("undervalued_stocks.txt", "a") as file_out:
+            file_out.write("UNDERVALUED STOCKS | " + str(date.today()) + "\n\n")
+            for s in undervalued_list:
+                file_out.write("----------------\n" + s.company_name + " (" + s.company_symbol + ")\n")
+                file_out.write("Value Margin: " + str(round(s.value_margin, 3)) + "%\n")
+                file_out.write("Price: " + str(s.price) + " | Intrinsic Value: " + str(s.intrinsic_value) + "\n")
+                file_out.write("P/B: " + str(s.price_book) + " | P/E (TTM): " + str(s.price_earnings) + "\n")
+                file_out.write("Market Cap: " + s.market_cap + " | Shares Outstanding: " + str(s.shares_outstanding) + "\n")
+                file_out.write("---------------- \n\n")
+        print("-- FINISHED PROCESSING JSON --")
+
+    def process_data(self):
+        self.___undervalued_stocks.sort(key=self.get_sorting_key, reverse=True)
+        print(self.___undervalued_stocks)
+        self.dump_stocks(self.___undervalued_stocks)
+
+#Why do we have to do this again when multiprocessing?
+if __name__ == "__main__":
+    obj = Manager()
+    obj.load_json('sp500.json')
+    obj.process_data()
