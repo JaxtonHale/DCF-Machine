@@ -168,7 +168,7 @@ class Stock:
 
             self.intrinsic_value = self.get_dcf_valuation(discount_rate_percent, growth_rate_percent) / self.shares_outstanding
         except Exception as e:
-            traceback.print_exc()
+#            traceback.print_exc()
             return False
             # If earnings are negative and intrinsic value is negative we don't want the stock
         if self.intrinsic_value <= 0:
@@ -176,7 +176,8 @@ class Stock:
         elif (self.price / self.intrinsic_value) < 0.8:
             # The sweet spot with DCF
             self.value_margin = abs((self.price - self.intrinsic_value) / self.intrinsic_value) * 100
-            print(self.company_symbol)
+            print('\n\n')
+
             self.get_stock_info()
             return True
         else:
@@ -201,6 +202,8 @@ class Manager:
     def dcf_test(self, stock):
         if stock.is_undervalued():
             self.___undervalued_stocks.append(stock)
+            print("hup hup haaa")
+            print(self.___undervalued_stocks)
 
     def load_json(self, filename):
         with open(filename, 'r') as f:
@@ -210,16 +213,12 @@ class Manager:
         pool = mp.Pool(mp.cpu_count())
         stock_list = pool.map(self.read_json_symbol, stock_data)
 
-        brah = mp.Pool(mp.cpu_count())
-       # for s in stock_list:
-        goober = brah.map(self.dcf_test, stock_list)
+        tmp1 = pool.map(self.dcf_test, stock_list)
 
-        #pool.apply(self.dcf_test, stock_list)
-        #temp = pool.map(self.dcf_test, stock_list)
+        print(self.___undervalued_stocks)
+
         pool.close()
         pool.join()
-        brah.close()
-        brah.join()
 
     def load_pickle(self, filename):
         with open(filename, 'rb') as f:
