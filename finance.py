@@ -176,7 +176,7 @@ class Stock:
         elif (self.price / self.intrinsic_value) < 0.8:
             # The sweet spot with DCF
             self.value_margin = abs((self.price - self.intrinsic_value) / self.intrinsic_value) * 100
-            print('\n\n')
+            #print('\n\n')
 
             self.get_stock_info()
             return True
@@ -201,9 +201,8 @@ class Manager:
 
     def dcf_test(self, stock):
         if stock.is_undervalued():
-            self.___undervalued_stocks.append(stock)
-            print("hup hup haaa")
-            print(self.___undervalued_stocks)
+            return stock
+            #self.___undervalued_stocks.append(stock)
 
     def load_json(self, filename):
         with open(filename, 'r') as f:
@@ -212,13 +211,9 @@ class Manager:
 
         pool = mp.Pool(mp.cpu_count())
         stock_list = pool.map(self.read_json_symbol, stock_data)
-
         tmp1 = pool.map(self.dcf_test, stock_list)
 
-        print(self.___undervalued_stocks)
-
-        pool.close()
-        pool.join()
+        self.___undervalued_stocks = list(filter((None).__ne__, tmp1))
 
     def load_pickle(self, filename):
         with open(filename, 'rb') as f:
