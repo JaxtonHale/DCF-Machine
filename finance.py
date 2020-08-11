@@ -1,7 +1,5 @@
 #!/usr/bin/env python
-import traceback
 import math
-import pandas as pd
 import yfinance as yf
 #import logging as log
 import pickle
@@ -186,9 +184,11 @@ class Stock:
 
 class Manager:
     ___undervalued_stocks = []
+    ___pool = None
 
     def __init__(self):
         self.___undervalued_stocks = []
+        self.___pool = mp.Pool(mp.cpu_count())
 
     def get_sorting_key(self, stock):
         return stock.value_margin
@@ -202,26 +202,23 @@ class Manager:
     def dcf_test(self, stock):
         if stock.is_undervalued():
             return stock
-            #self.___undervalued_stocks.append(stock)
+
+    def dcf_compute(stock_obj_list):
+        tmp1 = self.___pool.map(self.dcf_test, stock_obj_list)
+        self.___undervalued_stocks = list(filter((None).__ne__, tmp1))
 
     def load_json(self, filename):
         with open(filename, 'r') as f:
             data = f.read()
-        stock_data = json.loads(data)
-
-        pool = mp.Pool(mp.cpu_count())
-        stock_list = pool.map(self.read_json_symbol, stock_data)
-        tmp1 = pool.map(self.dcf_test, stock_list)
-
-        self.___undervalued_stocks = list(filter((None).__ne__, tmp1))
+        raw_stock_data = json.loads(data)
+        stock_list = self.___pool.map(self.read_json_symbol, raw_stock_data)
+        return stock_list
 
     def load_pickle(self, filename):
         with open(filename, 'rb') as f:
-            stock_data = pickle.load(f)
-
-        pool = mp.Pool(mp.cpu_count())
-        stock_list = pool.map(self.read_pickle, stock_data)
-        temp = pool.map(self.dcf_test, stock_list)
+            raw_stock_data = pickle.load(f)
+        stock_list = self.___pool.map(self.read_pickle, raw_stock_data)
+        return stock_list
 
     def dump_stocks(self):
         with open("undervalued_stocks.txt", "a") as file_out:
@@ -232,7 +229,7 @@ class Manager:
                 file_out.write("Price: " + str(s.price) + " | Intrinsic Value: " + str(s.intrinsic_value) + "\n")
                 file_out.write("P/B: " + str(s.price_book) + " | P/E (TTM): " + str(s.price_earnings) + "\n")
                 file_out.write("Market Cap: " + s.market_cap + " | Shares Outstanding: " + str(s.shares_outstanding) + "\n")
-                file_out.write("Industry: " + s.sector + " | Sector: " + s.sector + "\n")
+                file_out.write("Industry: " + s.sector + " | Sector: " + s.industry + "\n")
                 file_out.write("Country: " + s.country + " | Currency: " + s.currency + "\n")
                 file_out.write("---------------- \n\n")
         print("-- FINISHED PROCESSING JSON --")
@@ -240,6 +237,30 @@ class Manager:
     def process_data(self):
         self.___undervalued_stocks.sort(key=self.get_sorting_key, reverse=True)
         self.dump_stocks()
+
+    # TODO: ADD DISCOUNT RATE AND GROWTH RATE
+    def database_dcf_run(database_name):
+        file_type = database_name.split(".", 1)[1]
+
+        stock_list = []
+        if file_type == "p": #pickle
+            stock_list = self.load_pickle(database_name)
+        elif file_type == "json":
+            stock_list = self.load_json(database_name)
+        else:
+            print("INVALID FILETYPE")
+            return 1
+        self.dcf_compute(stock_list)
+        self.process_data()
+
+
+'''
+        pool = mp.Pool(mp.cpu_count())
+        stock_list = pool.map(self.read_json_symbol, stock_data)
+        tmp1 = pool.map(self.dcf_test, stock_list)
+
+        self.___undervalued_stocks = list(filter((None).__ne__, tmp1))
+'''
 
 #Why do we have to do this again when multiprocessing?
 if __name__ == "__main__":
