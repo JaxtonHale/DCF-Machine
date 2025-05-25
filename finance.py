@@ -184,7 +184,7 @@ class Stock:
             return False
             #If the stock is overvalued according to DCF we also don't want it
 
-class Manager:
+class StockProcessor:
     ___undervalued_stocks = []
 
     def __init__(self):
@@ -241,8 +241,7 @@ class Manager:
         self.___undervalued_stocks.sort(key=self.get_sorting_key, reverse=True)
         self.dump_stocks()
 
-#Why do we have to do this again when multiprocessing?
 if __name__ == "__main__":
-    obj = Manager()
+    obj = StockProcessor()
     obj.load_json('sp500.json')
     obj.process_data()
