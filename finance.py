@@ -152,8 +152,8 @@ class Stock:
 
         try:
             self.currency = self.___stock_info['currency']
-            if self.currency is None:
-                self.currency = ""
+            if self.curency is None:
+                self.curency = ""
         except:
             pass
 
